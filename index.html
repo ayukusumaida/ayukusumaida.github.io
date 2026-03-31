@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #080808;
+            --surface: #111111;
+            --card: #1a1a1a;
+            --border: #282828;
+            --fg: #ececec;
+            --muted: #666;
+            --accent: #d4943a;
+            --accent-glow: rgba(212, 148, 58, 0.25);
+            --success: #34d399;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 25% 20%, rgba(212,148,58,0.06) 0%, transparent 55%),
+                radial-gradient(ellipse at 75% 80%, rgba(212,148,58,0.04) 0%, transparent 55%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .bg-grid {
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none; z-index: 0;
+        }
+        .title-font { font-family: 'Outfit', sans-serif; }
+
+        /* Tombol */
+        .btn {
+            padding: 7px 14px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--card);
+            color: var(--fg); cursor: pointer;
+            transition: all 0.2s; font-family: inherit; font-size: 13px;
+            display: inline-flex; align-items: center; gap: 5px;
+            white-space: nowrap;
+        }
+        .btn:hover { border-color: var(--accent); background: rgba(212,148,58,0.08); }
+        .btn.active { border-color: var(--accent); background: rgba(212,148,58,0.14); color: var(--accent); }
+        .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+        .btn-primary:hover { background: #e0a344; border-color: #e0a344; }
+
+        /* Statistik */
+        .stat-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 8px 14px; text-align: center; min-width: 85px;
+        }
+        .stat-value { font-size: 20px; font-weight: 700; color: var(--accent); font-family: 'Outfit', sans-serif; }
+        .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; margin-top: 1px; }
+
+        /* Bingkai puzzle */
+        .puzzle-frame {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 14px; padding: 8px;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 25px 70px rgba(0,0,0,0.55),
+                        inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+        .puzzle-grid {
+            display: grid; gap: 3px; border-radius: 8px; overflow: hidden;
+            position: relative;
+        }
+
+        /* Potongan puzzle */
+        .puzzle-piece {
+            cursor: grab; border-radius: 3px;
+            transition: box-shadow 0.15s;
+            touch-action: none; user-select: none;
+            position: relative; background-repeat: no-repeat;
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.25);
+            animation: pieceIn 0.35s cubic-bezier(0.34,1.56,0.64,1) backwards;
+        }
+        .puzzle-piece:hover:not(.dragging) {
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.25), 0 0 14px var(--accent-glow);
+            z-index: 10;
+        }
+        .puzzle-piece.dragging {
+            cursor: grabbing;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 25px var(--accent-glow);
+            z-index: 200; opacity: 0.92;
+        }
+        .puzzle-piece.selected {
+            box-shadow: 0 0 0 3px var(--accent), 0 0 20px var(--accent-glow), inset 0 0 4px rgba(0,0,0,0.15);
+            z-index: 50;
+        }
+        .puzzle-piece.correct:not(.selected):not(.dragging) {
+            box-shadow: 0 0 0 2px var(--success), 0 0 10px rgba(52,211,153,0.15), inset 0 0 4px rgba(0,0,0,0.15);
+        }
+        .drop-target {
+            box-shadow: 0 0 0 3px var(--accent), 0 0 28px var(--accent-glow) !important;
+        }
+        @keyframes pieceIn {
+            from { opacity: 0; transform: scale(0.4) rotate(8deg); }
+            to   { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+
+        /* Nomor potongan */
+        .piece-num {
+            position: absolute; top: 2px; left: 2px;
+            background: rgba(0,0,0,0.72); color: #fff;
+            font-size: 9px; font-weight: 600;
+            width: 17px; height: 17px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.2s; pointer-events: none;
+        }
+        .show-nums .piece-num { opacity: 1; }
+
+        /* Petunjuk */
+        .how-box {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 18px 20px; max-width: 460px; width: 100%;
+        }
+        .step-row { display: flex; align-items: flex-start; gap: 10px; padding: 5px 0; }
+        .step-n {
+            width: 24px; height: 24px; min-width: 24px; border-radius: 50%;
+            background: rgba(212,148,58,0.14); color: var(--accent);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 12px; margin-top: 1px;
+        }
+
+        /* Overlay selesai */
+        .done-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+            backdrop-filter: blur(12px); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.45s;
+        }
+        .done-overlay.show { opacity: 1; pointer-events: all; }
+        .done-card {
+            background: var(--card); border: 2px solid var(--accent);
+            border-radius: 20px; padding: 36px 40px; text-align: center;
+            transform: scale(0.75) translateY(30px);
+            transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+            box-shadow: 0 0 80px var(--accent-glow);
+            max-width: 380px; width: 90%;
+        }
+        .done-overlay.show .done-card { transform: scale(1) translateY(0); }
+
+        /* Modal referensi */
+        .ref-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.82);
+            backdrop-filter: blur(6px); z-index: 500;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .ref-modal.show { opacity: 1; pointer-events: all; }
+
+        /* Toast */
+        .toast-el {
+            position: fixed; bottom: 24px; left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--card); border: 1px solid var(--border);
+            color: var(--fg); padding: 10px 22px; border-radius: 10px;
+            font-size: 13px; z-index: 2000;
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+            box-shadow: 0 10px 35px rgba(0,0,0,0.5);
+        }
+        .toast-el.show { transform: translateX(-50%) translateY(0); }
+
+        /* Partikel */
+        #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 999; }
+
+        /* Progress bar kebenaran */
+        .progress-track {
+            width: 100%; max-width: 500px; height: 6px;
+            background: var(--border); border-radius: 3px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--success));
+            transition: width 0.35s ease;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .puzzle-piece, .done-card, .toast-el { transition: none !important; animation: none !important; }
+        }
+        @media (max-width: 480px) {
+            .stat-card { padding: 5px 8px; min-width: 68px; }
+            .stat-value { font-size: 16px; }
+            .stat-label { font-size: 9px; }
+            .btn { padding: 5px 10px; font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <canvas id="confetti"></canvas>
+
+    <div class="relative z-10 min-h-screen flex flex-col">
+        <!-- Header -->
+        <main class="flex-1 flex flex-col items-center px-3 pb-8">
+            <!-- Kontrol -->
+            <div class="flex flex-wrap items-center justify-center gap-2 mt-3 mb-3">
+                <div class="flex gap-1">
+                    <button class="btn active" data-g="3" onclick="setDifficulty(3)">3x3</button>
+                    <button class="btn" data-g="4" onclick="setDifficulty(4)">4x4</button>
+                    <button class="btn" data-g="5" onclick="setDifficulty(5)">5x5</button>
+                </div>
+                <button class="btn" id="btnNum" onclick="toggleNums()"><i class="fas fa-hashtag fa-xs"></i> Nomor</button>
+                <button class="btn" onclick="showRef()"><i class="fas fa-eye fa-xs"></i> Referensi</button>
+                <button class="btn btn-primary" onclick="resetPuzzle()"><i class="fas fa-rotate-right fa-xs"></i> Ulang</button>
+            </div>
+
+            <!-- Statistik -->
+            <div class="flex gap-2 sm:gap-3 mb-2">
+                <div class="stat-card">
+                    <div class="stat-value" id="sTime">00:00</div>
+                    <div class="stat-label">Waktu</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="sMoves">0</div>
+                    <div class="stat-label">Langkah</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="sCorrect">0</div>
+                    <div class="stat-label">Benar</div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-track mb-3">
+                <div class="progress-fill" id="progressBar" style="width:0%"></div>
+            </div>
+
+            <!-- Puzzle -->
+            <div class="puzzle-frame">
+                <div class="puzzle-grid" id="grid"></div>
+            </div>
+
+            <!-- Cara bermain -->
+            <div class="how-box mt-5">
+                <h3 class="title-font font-bold text-base mb-2" style="color:var(--accent)">Cara Bermain</h3>
+                <div class="step-row">
+                    <div class="step-n">1</div>
+                    <p class="text-xs sm:text-sm" style="color:var(--muted)">Seret potongan puzzle ke posisi lain, atau klik dua potongan bergantian untuk menukar</p>
+                </div>
+                <div class="step-row">
+                    <div class="step-n">2</div>
+                    <p class="text-xs sm:text-sm" style="color:var(--muted)">Susun semua potongan hingga gambar terbentuk utuh dan sempurna</p>
+                </div>
+                <div class="step-row">
+                    <div class="step-n">3</div>
+                    <p class="text-xs sm:text-sm" style="color:var(--muted)">Potongan di posisi benar ditandai border hijau, progress bar menunjukkan kemajuan</p>
+                </div>
+                <div class="step-row">
+                    <div class="step-n">4</div>
+                    <p class="text-xs sm:text-sm" style="color:var(--muted)">Tekan "Referensi" untuk melihat gambar lengkap sebagai panduan</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Overlay selesai -->
+    <div class="done-overlay" id="doneOverlay">
+        <div class="done-card">
+            <div class="text-5xl mb-3" style="color:var(--accent)"><i class="fas fa-trophy"></i></div>
+            <h2 class="title-font text-xl sm:text-2xl font-black mb-1">Puzzle Selesai</h2>
+            <p class="text-sm mb-4" style="color:var(--muted)">Gambar sudah tersusun sempurna</p>
+            <div class="flex justify-center gap-3 mb-5">
+                <div class="stat-card"><div class="stat-value" id="fTime">00:00</div><div class="stat-label">Waktu</div></div>
+                <div class="stat-card"><div class="stat-value" id="fMoves">0</div><div class="stat-label">Langkah</div></div>
+            </div>
+            <button class="btn btn-primary text-sm px-6 py-2" onclick="closeDone();resetPuzzle();">
+                <i class="fas fa-rotate-right fa-xs"></i> Main Lagi
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal referensi -->
+    <div class="ref-modal" id="refModal" onclick="hideRef()">
+        <canvas id="refCvs" onclick="event.stopPropagation()" style="border-radius:12px;border:2px solid var(--border);max-width:80vw;max-height:80vh;"></canvas>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-el" id="toast"></div>
+
+    <script>
+    /* ====== STATE ====== */
+    let gridSize = 3;
+    let pieces = [];       // pieces[posisi] = indeksBenar
+    let selPos = -1;       // posisi potongan yang dipilih
+    let moves = 0;
+    let secs = 0;
+    let timer = null;
+    let done = false;
+    let showNums = false;
+    let imgURL = '';
+
+    // Drag
+    let dragging = false;
+    let dragPos = -1;
+    let dragEl = null;
+    let dragSX = 0, dragSY = 0;
+    let hasMoved = false;
+
+    /* ====== AUDIO (Web Audio) ====== */
+    let actx = null;
+    function getAudio() {
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+        if (actx.state === 'suspended') actx.resume();
+        return actx;
+    }
+    function snd(type) {
+        try {
+            const a = getAudio();
+            if (type === 'complete') {
+                [523,659,784,1047].forEach((f,i) => {
+                    const o = a.createOscillator(), g = a.createGain();
+                    o.connect(g); g.connect(a.destination);
+                    o.frequency.value = f; g.gain.value = 0.07;
+                    o.start(a.currentTime + i * 0.14);
+                    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + i * 0.14 + 0.28);
+                    o.stop(a.currentTime + i * 0.14 + 0.28);
+                });
+                return;
+            }
+            const o = a.createOscillator(), g = a.createGain();
+            o.connect(g); g.connect(a.destination);
+            if (type === 'select') { o.frequency.value = 660; g.gain.value = 0.06; o.start(); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.08); o.stop(a.currentTime + 0.08); }
+            else if (type === 'swap') { o.frequency.value = 440; g.gain.value = 0.05; o.start(); o.frequency.exponentialRampToValueAtTime(880, a.currentTime + 0.12); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.12); o.stop(a.currentTime + 0.12); }
+            else if (type === 'snap') { o.frequency.value = 880; g.gain.value = 0.04; o.start(); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.06); o.stop(a.currentTime + 0.06); }
+        } catch(e) {}
+    }
+
+    /* ====== GAMBAR PUZZLE ====== */
+    function loadImg(url) {
+        return new Promise((res, rej) => {
+            const img = new Image(); img.crossOrigin = 'anonymous';
+            const t = setTimeout(() => rej('timeout'), 4000);
+            img.onload = () => { clearTimeout(t); res(img); };
+            img.onerror = () => { clearTimeout(t); rej('err'); };
+            img.src = url;
+        });
+    }
+
+    function drawFace(ctx, s) {
+        // Latar putih
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, s, s);
+        const cx = s / 2, cy = s / 2 + s * 0.02;
+
+        ctx.strokeStyle = '#111'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+        // Rambut (garis-garis di atas)
+        ctx.lineWidth = s * 0.013;
+        for (let i = 0; i < 15; i++) {
+            const a = -Math.PI * 0.2 + (Math.PI * 0.4 / 14) * i;
+            const r1 = s * 0.26, r2 = s * 0.34 + Math.random() * s * 0.06;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(a) * r1, cy - s * 0.16 + Math.sin(a) * r1 * 0.25);
+            ctx.quadraticCurveTo(
+                cx + Math.cos(a) * (r1 + r2) / 2, cy - s * 0.16 + Math.sin(a) * (r1 + r2) * 0.12 - s * 0.06,
+                cx + Math.cos(a) * r2, cy - s * 0.16 + Math.sin(a) * r2 * 0.25 - s * 0.08
+            );
+            ctx.stroke();
+        }
+
+        // Kontur wajah
+        ctx.lineWidth = s * 0.016;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, s * 0.27, s * 0.37, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Telinga kiri
+        ctx.lineWidth = s * 0.011;
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.27, cy - s * 0.06);
+        ctx.quadraticCurveTo(cx - s * 0.34, cy + s * 0.01, cx - s * 0.27, cy + s * 0.08);
+        ctx.stroke();
+        // Telinga kanan
+        ctx.beginPath();
+        ctx.moveTo(cx + s * 0.27, cy - s * 0.06);
+        ctx.quadraticCurveTo(cx + s * 0.34, cy + s * 0.01, cx + s * 0.27, cy + s * 0.08);
+        ctx.stroke();
+
+        // Alis kiri
+        const eyeY = cy - s * 0.07;
+        const leX = cx - s * 0.095, reX = cx + s * 0.095;
+        ctx.lineWidth = s * 0.016;
+        ctx.beginPath();
+        ctx.moveTo(leX - s * 0.08, eyeY - s * 0.055);
+        ctx.quadraticCurveTo(leX, eyeY - s * 0.08, leX + s * 0.085, eyeY - s * 0.04);
+        ctx.stroke();
+        // Alis kanan
+        ctx.beginPath();
+        ctx.moveTo(reX - s * 0.085, eyeY - s * 0.04);
+        ctx.quadraticCurveTo(reX, eyeY - s * 0.08, reX + s * 0.08, eyeY - s * 0.055);
+        ctx.stroke();
+
+        // Mata kiri
+        ctx.lineWidth = s * 0.013;
+        ctx.beginPath();
+        ctx.ellipse(leX, eyeY, s * 0.065, s * 0.032, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(leX + s * 0.005, eyeY, s * 0.016, 0, Math.PI * 2); ctx.fill();
+        // Kilat mata
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(leX + s * 0.012, eyeY - s * 0.007, s * 0.005, 0, Math.PI * 2); ctx.fill();
+
+        // Mata kanan
+        ctx.fillStyle = '#111'; ctx.strokeStyle = '#111';
+        ctx.lineWidth = s * 0.013;
+        ctx.beginPath();
+        ctx.ellipse(reX, eyeY, s * 0.065, s * 0.032, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(reX + s * 0.005, eyeY, s * 0.016, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(reX + s * 0.012, eyeY - s * 0.007, s * 0.005, 0, Math.PI * 2); ctx.fill();
+
+        // Hidung
+        ctx.strokeStyle = '#111'; ctx.lineWidth = s * 0.01;
+        ctx.beginPath();
+        ctx.moveTo(cx, eyeY + s * 0.04);
+        ctx.lineTo(cx - s * 0.005, cy + s * 0.09);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx - s * 0.022, cy + s * 0.095, s * 0.011, 0.3, Math.PI - 0.3);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + s * 0.018, cy + s * 0.095, s * 0.011, 0.3, Math.PI - 0.3);
+        ctx.stroke();
+
+        // Mulut
+        const mY = cy + s * 0.17;
+        ctx.lineWidth = s * 0.014;
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.08, mY);
+        ctx.quadraticCurveTo(cx - s * 0.03, mY - s * 0.018, cx, mY - s * 0.008);
+        ctx.quadraticCurveTo(cx + s * 0.03, mY - s * 0.018, cx + s * 0.08, mY);
+        ctx.stroke();
+        ctx.lineWidth = s * 0.01;
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.075, mY);
+        ctx.quadraticCurveTo(cx, mY + s * 0.045, cx + s * 0.075, mY);
+        ctx.stroke();
+
+        // Garis dagu
+        ctx.lineWidth = s * 0.007;
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.06, cy + s * 0.27);
+        ctx.quadraticCurveTo(cx, cy + s * 0.33, cx + s * 0.06, cy + s * 0.27);
+        ctx.stroke();
+
+        // Elemen dekoratif - lingkaran konsentris
+        ctx.strokeStyle = '#d4d4d4'; ctx.lineWidth = s * 0.004;
+        ctx.beginPath(); ctx.arc(cx, cy, s * 0.33, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, s * 0.4, 0, Math.PI * 2); ctx.stroke();
+
+        // Sudut dekoratif
+        const cs = s * 0.07;
+        ctx.strokeStyle = '#bbb'; ctx.lineWidth = s * 0.005;
+        [[s*0.04,s*0.04,1,1],[s*0.96-s*0.04,s*0.04,-1,1],[s*0.04,s*0.96-s*0.04,1,-1],[s*0.96-s*0.04,s*0.96-s*0.04,-1,-1]].forEach(([x,y,dx,dy]) => {
+            ctx.beginPath(); ctx.moveTo(x, y + dy * cs); ctx.lineTo(x, y); ctx.lineTo(x + dx * cs, y); ctx.stroke();
+        });
+
+        // Garis-garis tekstur halus di pipi
+        ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = s * 0.003;
+        for (let i = 0; i < 4; i++) {
+            const yy = cy + s * 0.04 + i * s * 0.025;
+            ctx.beginPath(); ctx.moveTo(cx - s * 0.18, yy); ctx.lineTo(cx - s * 0.12, yy); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx + s * 0.12, yy); ctx.lineTo(cx + s * 0.18, yy); ctx.stroke();
+        }
+    }
+
+    async function generateImage() {
+        const cvs = document.createElement('canvas');
+        const sz = 600; cvs.width = sz; cvs.height = sz;
+        const ctx = cvs.getContext('2d');
+        try {
+            const img = await loadImg('https://z-cdn-media.chatglm.cn/files/7fad6a90-4dc0-4627-9e26-462dce70cc38.jpg?auth_key=1874963932-52f9ed6d8ada41a5bc89b8ead8126600-0-3f23ca3ee390348ca841f13526a154e5');
+            ctx.drawImage(img, 0, 0, sz, sz);
+        } catch(e) {
+            drawFace(ctx, sz);
+        }
+        imgURL = cvs.toDataURL();
+        const rc = document.getElementById('refCvs');
+        rc.width = sz; rc.height = sz;
+        rc.getContext('2d').drawImage(cvs, 0, 0);
+    }
+
+    /* ====== ACAK ====== */
+    function shuffle(arr) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        if (a.every((v, i) => v === i)) [a[0], a[1]] = [a[1], a[0]];
+        return a;
+    }
+
+    /* ====== INISIALISASI ====== */
+    function initPuzzle() {
+        const n = gridSize * gridSize;
+        pieces = shuffle(Array.from({length: n}, (_, i) => i));
+        selPos = -1; moves = 0; secs = 0; done = false;
+        clearInterval(timer); timer = null;
+        updateStats(); renderGrid();
+    }
+
+    /* ====== RENDER ====== */
+    function renderGrid() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        const maxSz = Math.min(window.innerWidth - 56, window.innerHeight - 380, 500);
+        const pzSz = Math.max(220, maxSz);
+        const pcSz = (pzSz - (gridSize - 1) * 3) / gridSize;
+
+        grid.style.gridTemplateColumns = `repeat(${gridSize}, ${pcSz}px)`;
+        grid.style.gridTemplateRows = `repeat(${gridSize}, ${pcSz}px)`;
+        grid.style.width = pzSz + 'px';
+        grid.style.height = pzSz + 'px';
+        grid.classList.toggle('show-nums', showNums);
+
+        for (let pos = 0; pos < pieces.length; pos++) {
+            const ci = pieces[pos];
+            const col = ci % gridSize, row = Math.floor(ci / gridSize);
+
+            const el = document.createElement('div');
+            el.className = 'puzzle-piece';
+            el.dataset.pos = pos;
+            el.style.width = pcSz + 'px';
+            el.style.height = pcSz + 'px';
+            el.style.backgroundImage = `url(${imgURL})`;
+            el.style.backgroundSize = `${pzSz}px ${pzSz}px`;
+            el.style.backgroundPosition = `-${col * pcSz}px -${row * pcSz}px`;
+            el.style.animationDelay = `${pos * 25}ms`;
+
+            if (ci === pos) el.classList.add('correct');
+            if (pos === selPos) el.classList.add('selected');
+
+            const nm = document.createElement('div');
+            nm.className = 'piece-num';
+            nm.textContent = ci + 1;
+            el.appendChild(nm);
+
+            el.addEventListener('pointerdown', onDown);
+            grid.appendChild(el);
+        }
+        updateCorrect();
+    }
+
+    /* ====== POINTER EVENTS ====== */
+    function onDown(e) {
+        if (done) return;
+        e.preventDefault();
+        getAudio();
+        const el = e.currentTarget;
+        const pos = +el.dataset.pos;
+
+        dragging = true; dragPos = pos; dragEl = el;
+        dragSX = e.clientX; dragSY = e.clientY; hasMoved = false;
+
+        el.setPointerCapture(e.pointerId);
+        el.addEventListener('pointermove', onMove);
+        el.addEventListener('pointerup', onUp);
+        el.addEventListener('pointercancel', onUp);
+    }
+
+    function onMove(e) {
+        if (!dragging || !dragEl) return;
+        e.preventDefault();
+        const dx = e.clientX - dragSX, dy = e.clientY - dragSY;
+        if (!hasMoved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+            hasMoved = true;
+            dragEl.classList.add('dragging');
+            dragEl.classList.remove('selected');
+        }
+        if (hasMoved) {
+            dragEl.style.transform = `translate(${dx}px, ${dy}px) scale(1.08)`;
+            clearDrop();
+            const tp = targetPos(e);
+            if (tp >= 0 && tp !== dragPos) {
+                document.querySelectorAll('.puzzle-piece')[tp]?.classList.add('drop-target');
+            }
+        }
+    }
+
+    function onUp(e) {
+        if (!dragging || !dragEl) return;
+        dragEl.removeEventListener('pointermove', onMove);
+        dragEl.removeEventListener('pointerup', onUp);
+        dragEl.removeEventListener('pointercancel', onUp);
+        dragEl.classList.remove('dragging');
+        dragEl.style.transform = '';
+        clearDrop();
+
+        if (hasMoved) {
+            const tp = targetPos(e);
+            if (tp >= 0 && tp !== dragPos) {
+                doSwap(dragPos, tp);
+                selPos = -1; clearSel();
+            }
+        } else {
+            handleClick(dragPos);
+        }
+        dragging = false; dragEl = null; dragPos = -1; hasMoved = false;
+    }
+
+    function targetPos(e) {
+        const g = document.getElementById('grid');
+        const r = g.getBoundingClientRect();
+        const pw = r.width / gridSize, ph = r.height / gridSize;
+        const c = Math.floor((e.clientX - r.left) / pw);
+        const rw = Math.floor((e.clientY - r.top) / ph);
+        if (c < 0 || c >= gridSize || rw < 0 || rw >= gridSize) return -1;
+        return rw * gridSize + c;
+    }
+
+    function clearDrop() { document.querySelectorAll('.drop-target').forEach(p => p.classList.remove('drop-target')); }
+    function clearSel() { document.querySelectorAll('.puzzle-piece.selected').forEach(p => p.classList.remove('selected')); }
+
+    function handleClick(pos) {
+        if (selPos >= 0 && selPos !== pos) {
+            doSwap(selPos, pos);
+            selPos = -1; clearSel();
+        } else if (selPos === pos) {
+            selPos = -1; clearSel();
+        } else {
+            clearSel(); selPos = pos;
+            document.querySelectorAll('.puzzle-piece')[pos]?.classList.add('selected');
+            snd('select');
+        }
+    }
+
+    /* ====== TUKAR ====== */
+    function doSwap(a, b) {
+        if (!timer) timer = setInterval(() => { secs++; updateStats(); }, 1000);
+        [pieces[a], pieces[b]] = [pieces[b], pieces[a]];
+        moves++;
+        snd('swap');
+
+        const cA = pieces[a] === a, cB = pieces[b] === b;
+        if (cA || cB) setTimeout(() => snd('snap'), 80);
+
+        renderGrid();
+
+        if (pieces.every((v, i) => v === i)) onComplete();
+    }
+
+    /* ====== STATISTIK ====== */
+    function fmt(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+    function updateStats() {
+        document.getElementById('sTime').textContent = fmt(secs);
+        document.getElementById('sMoves').textContent = moves;
+    }
+    function updateCorrect() {
+        const c = pieces.filter((v, i) => v === i).length;
+        const total = pieces.length;
+        document.getElementById('sCorrect').textContent = c;
+        document.getElementById('progressBar').style.width = `${(c / total * 100).toFixed(1)}%`;
+    }
+
+    /* ====== SELESAI ====== */
+    function onComplete() {
+        done = true; clearInterval(timer);
+        snd('complete');
+        // Hilangkan border benar untuk tampilan bersih
+        document.querySelectorAll('.puzzle-piece').forEach(p => {
+            p.classList.remove('correct');
+            p.style.borderRadius = '0';
+            p.style.boxShadow = 'none';
+        });
+        document.getElementById('fTime').textContent = fmt(secs);
+        document.getElementById('fMoves').textContent = moves;
+        document.getElementById('progressBar').style.width = '100%';
+        setTimeout(() => {
+            document.getElementById('doneOverlay').classList.add('show');
+            fireConfetti();
+        }, 450);
+    }
+    function closeDone() { document.getElementById('doneOverlay').classList.remove('show'); }
+
+    /* ====== KONFETI ====== */
+    function fireConfetti() {
+        const cvs = document.getElementById('confetti');
+        cvs.width = innerWidth; cvs.height = innerHeight;
+        const ctx = cvs.getContext('2d');
+        const cols = ['#d4943a','#e0a344','#34d399','#fbbf24','#f59e0b','#fff','#f87171','#60a5fa'];
+        const ps = [];
+        for (let i = 0; i < 120; i++) {
+            ps.push({
+                x: cvs.width / 2 + (Math.random() - 0.5) * 300,
+                y: cvs.height / 2 + (Math.random() - 0.5) * 100,
+                vx: (Math.random() - 0.5) * 14,
+                vy: (Math.random() - 0.5) * 14 - 6,
+                sz: Math.random() * 7 + 2,
+                c: cols[Math.floor(Math.random() * cols.length)],
+                a: 1, d: Math.random() * 0.012 + 0.004,
+                rot: Math.random() * Math.PI * 2,
+                rv: (Math.random() - 0.5) * 0.25,
+                shape: Math.random() > 0.5 ? 'rect' : 'circle'
+            });
+        }
+        (function loop() {
+            ctx.clearRect(0, 0, cvs.width, cvs.height);
+            let alive = false;
+            ps.forEach(p => {
+                if (p.a <= 0) return; alive = true;
+                p.x += p.vx; p.y += p.vy; p.vy += 0.16;
+                p.a -= p.d; p.rot += p.rv;
+                ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+                ctx.globalAlpha = Math.max(0, p.a); ctx.fillStyle = p.c;
+                if (p.shape === 'rect') ctx.fillRect(-p.sz / 2, -p.sz / 2, p.sz, p.sz * 0.6);
+                else { ctx.beginPath(); ctx.arc(0, 0, p.sz / 2, 0, Math.PI * 2); ctx.fill(); }
+                ctx.restore();
+            });
+            if (alive) requestAnimationFrame(loop);
+            else ctx.clearRect(0, 0, cvs.width, cvs.height);
+        })();
+    }
+
+    /* ====== KONTROL ====== */
+    function setDifficulty(n) {
+        gridSize = n;
+        document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('active', +b.dataset.g === n));
+        resetPuzzle();
+    }
+    function toggleNums() {
+        showNums = !showNums;
+        document.getElementById('btnNum').classList.toggle('active', showNums);
+        document.getElementById('grid').classList.toggle('show-nums', showNums);
+    }
+    function showRef() { document.getElementById('refModal').classList.add('show'); }
+    function hideRef() { document.getElementById('refModal').classList.remove('show'); }
+    function resetPuzzle() { closeDone(); initPuzzle(); toast('Puzzle diacak ulang'); }
+
+    /* ====== TOAST ====== */
+    function toast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg; el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 2000);
+    }
+
+    /* ====== KEYBOARD ====== */
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { hideRef(); closeDone(); }
+    });
+
+    /* ====== RESIZE ====== */
+    window.addEventListener('resize', () => {
+        if (!done) renderGrid();
+        const c = document.getElementById('confetti');
+        c.width = innerWidth; c.height = innerHeight;
+    });
+
+    /* ====== MULAI ====== */
+    window.addEventListener('load', async () => {
+        await generateImage();
+        initPuzzle();
+    });
+    </script>
+</body>
+</html>
